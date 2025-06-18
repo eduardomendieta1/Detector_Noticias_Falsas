@@ -1,5 +1,7 @@
-let grafico;
+// scripts.js
 let recognition;
+initSpeech();
+loadFromStorage();
 
 function initSpeech() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
@@ -10,8 +12,6 @@ function initSpeech() {
   };
 }
 
-initSpeech();
-
 function grabarTexto() {
   if (!recognition) {
     Swal.fire({ title: 'Error', text: 'Tu navegador no soporta reconocimiento de voz.', icon: 'error' });
@@ -21,61 +21,135 @@ function grabarTexto() {
 }
 
 function clasificar() {
-  const texto = document.getElementById('noticia').value;
-  const spinner = document.getElementById('spinner');
-  const resultado = document.getElementById('resultado');
-  const canvas = document.getElementById('graficoConfianza');
-  const iaThinking = document.getElementById('iaThinking');
+  const textarea = document.getElementById('noticia');
+  const texto = textarea.value.trim();
+  if (!texto) return;
 
-  resultado.innerText = '';
-  canvas.classList.add('hidden');
-  iaThinking.classList.remove('hidden');
-  spinner.classList.remove('hidden');
+  showLoader(true);
+  addMessage(texto, 'user-message');
+  textarea.value = '';
 
   fetch('/predecir', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ texto })
   })
-    .then(r => r.json())
+    .then(res => res.json())
     .then(data => {
-      resultado.innerText = `Resultado: ${data.resultado} (${data.confianza}% confianza)`;
+      showLoader(false);
+      const resultado = `Resultado: ${data.resultado} (${data.confianza}% confianza)`;
+
       Swal.fire({
-        title: data.resultado==="Verdadera" ? "✅ Noticia verdadera" : "🚫 Noticia falsa",
+        title: data.resultado === "Verdadera" ? "✅ Noticia verdadera" : "🚫 Noticia falsa",
         text: `Confianza: ${data.confianza}%`,
-        icon: data.resultado==="Verdadera" ? "success" : "warning",
+        icon: data.resultado === "Verdadera" ? "success" : "warning",
         confirmButtonText: "Entendido"
       });
-      const msg = new SpeechSynthesisUtterance(`La noticia es ${data.resultado}, ${data.confianza} % de confianza`);
-      window.speechSynthesis.speak(msg);
 
-      canvas.classList.remove('hidden');
-      const ctx = canvas.getContext('2d');
-      if (grafico) grafico.destroy();
-      grafico = new Chart(ctx, {
-        type: 'bar',
-        data: { labels:['Confianza'], datasets:[{
-          label:'Nivel de confianza', data:[data.confianza],
-          backgroundColor:['rgba(0,170,255,0.7)'], borderColor:['rgba(0,123,255,1)'], borderWidth:1
-        }]},
-        options:{ indexAxis:'y', responsive:true,
-                  scales:{ x:{ min:0, max:100, ticks:{ callback:v=>v+'%' }} }
-        }
-      });
+      const voz = new SpeechSynthesisUtterance(`La noticia es ${data.resultado}, con ${data.confianza} por ciento de confianza`);
+      voz.lang = 'es-ES';
+      window.speechSynthesis.speak(voz);
+
+      addMessage(resultado, 'ai-message', data.confianza);
+      saveToStorage(texto, resultado);
     })
-    .catch(()=>{
-      Swal.fire({ title:'Error', text:'No se pudo clasificar la noticia.', icon:'error' });
-    })
-    .finally(()=>{
-      spinner.classList.add('hidden');
-      document.getElementById('iaThinking').classList.add('hidden');
+    .catch(() => {
+      showLoader(false);
+      Swal.fire({ title: "Error", text: "No se pudo clasificar la noticia.", icon: "error" });
     });
 }
 
-function limpiar() {
-  document.getElementById('noticia').value = '';
-  document.getElementById('resultado').innerText = '';
-  document.getElementById('graficoConfianza').classList.add('hidden');
-  document.getElementById('iaThinking').classList.add('hidden');
-  if (grafico) { grafico.destroy(); grafico = null; }
+function addMessage(text, type, confianza = null) {
+  const container = document.getElementById('chat-history');
+
+  const msg = document.createElement('div');
+  msg.className = `message ${type}`;
+  msg.textContent = text;
+  container.appendChild(msg);
+
+  if (confianza !== null) {
+    const chartCanvas = document.createElement('canvas');
+    chartCanvas.className = 'chart-response';
+    msg.appendChild(chartCanvas);
+
+    const ctx = chartCanvas.getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Confianza'],
+        datasets: [{
+          label: 'Nivel de confianza',
+          data: [confianza],
+          backgroundColor: 'rgba(0,170,127,0.6)',
+          borderColor: 'rgba(0,170,127,1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        scales: {
+          x: {
+            min: 0,
+            max: 100,
+            ticks: {
+              callback: v => v + '%'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  msg.scrollIntoView({ behavior: 'smooth' });
+}
+
+function limpiarHistorial() {
+  localStorage.removeItem('historial');
+  document.getElementById('chat-history').innerHTML = `
+    <div class="welcome">
+      <h2>Bienvenido al modelo de Noticias Falsas</h2>
+      <p>Inicie una conversación escribiendo una noticia o usando el micrófono.</p>
+    </div>
+  `;
+  document.getElementById('conversation-list').innerHTML = '';
+}
+
+function saveToStorage(texto, resultado) {
+  const historial = JSON.parse(localStorage.getItem('historial') || '[]');
+  const fecha = new Date().toLocaleString();
+  historial.push({ texto, resultado, fecha });
+  localStorage.setItem('historial', JSON.stringify(historial));
+  addToSidebar(texto, fecha);
+}
+
+function addToSidebar(titulo, fecha) {
+  const list = document.getElementById('conversation-list');
+  const item = document.createElement('div');
+  item.className = 'conversation-item';
+  item.innerHTML = `
+    <div class="title">${titulo.slice(0, 25)}...</div>
+    <div class="date">${fecha}</div>
+  `;
+  item.addEventListener('click', () => {
+    document.getElementById('chat-history').innerHTML = '';
+    addMessage(titulo, 'user-message');
+    addMessage(historial.find(h => h.texto === titulo)?.resultado || 'Sin resultado', 'ai-message');
+  });
+  list.appendChild(item);
+}
+
+function loadFromStorage() {
+  const historial = JSON.parse(localStorage.getItem('historial') || '[]');
+  const list = document.getElementById('conversation-list');
+  historial.forEach(({ texto, resultado, fecha }) => {
+    addMessage(texto, 'user-message');
+    addMessage(resultado, 'ai-message');
+    addToSidebar(texto, fecha);
+  });
+}
+
+function showLoader(state) {
+  const loader = document.getElementById('loader');
+  loader.classList.toggle('hidden', !state);
 }
