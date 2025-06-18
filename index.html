@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fake News Classifier</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <canvas id="three-bg"></canvas>
+
+  <!-- Loader tipo red neuronal -->
+  <div id="loader" class="loader-container hidden">
+    <canvas id="loader-canvas" width="200" height="200"></canvas>
+  </div>
+
+  <div class="chat-app">
+    <!-- Barra lateral -->
+    <aside class="sidebar" id="sidebar">
+      <button class="toggle-sidebar" onclick="toggleSidebar()">☰ Menú</button>
+      <button class="new-chat" onclick="limpiarHistorial()">🗑 Nueva Conversación</button>
+      <div class="conversation-list" id="conversation-list"></div>
+    </aside>
+
+    <!-- Panel principal -->
+    <main class="chat-panel">
+      <header class="chat-header">📰 Clasificador de Noticias Falsas</header>
+      <section class="chat-messages" id="chat-history">
+        <div class="welcome">
+          <h2>Bienvenido al modelo de Noticias Falsas</h2>
+          <p>Inicie una conversación escribiendo una noticia o usando el micrófono.</p>
+        </div>
+      </section>
+
+      <!-- Entrada de usuario -->
+      <footer class="chat-input-area">
+        <textarea id="noticia" placeholder="Escribe tu noticia aquí..."></textarea>
+        <div class="chat-buttons">
+          <button onclick="grabarTexto()" title="Entrada por voz">
+            <i class="ri-mic-fill"></i>
+          </button>
+          <button onclick="clasificar()" title="Enviar">
+            <i class="ri-send-plane-fill"></i>
+          </button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+    }
+  </script>
+
+  <script src="{{ url_for('static', filename='js/three-bg.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/loader.js') }}"></script>
+</body>
+</html>
